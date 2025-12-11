@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>โปรแกรมคำนวณตัวเลข</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="container">
+    <button class="theme-btn" onclick="toggleTheme()">🌙</button>
+    <div style="height:20px;"></div>
+    <div id="alertBox" class="alert-bar"></div>
+    
+    <div class="lotto-header">
+        <h2 style="margin-bottom:10px; font-weight:800; color:var(--txt);">🔢 AI CALCULATOR <span style="font-size:12px; background:var(--p); color:white; padding:2px 8px; border-radius:10px;">ULTIMATE FINAL FIXED v16</span></h2>
+        
+        <div class="lotto-selector-group">
+            <select id="lottoSelector" onchange="changeLottoType()">
+                <option value="thai">🇹🇭 หวยรัฐบาล</option>
+                <option value="lao">🇱🇦 หวยลาว</option>
+                <option value="hanoi">🇻🇳 หวยฮานอย</option>
+                <option value="yeekee">🎰 หวยยี่กี</option>
+                <option value="stock">📈 หวยหุ้น/อื่นๆ</option>
+            </select>
+            <span id="dbCount" class="db-counter">0 งวด</span>
+            <button onclick="renameLotto()" class="btn" style="padding:2px 8px; font-size:12px; border:none; background:transparent;">✏️</button>
+        </div>
+    </div>
+
+    <div class="collapsible-container">
+        <div class="collapsible-header" onclick="toggleSection('inputContent', 'inputIcon')">
+            <span>📝 จัดการข้อมูลและสถิติ</span><span id="inputIcon">▼</span>
+        </div>
+        <div id="inputContent" class="collapsible-content">
+            <div class="input-section">
+                <div class="input-box-main">
+                    <div class="label-head"><span>📚 ฐานข้อมูล</span><div><button onclick="toggleEditData()" id="btnEdit" class="btn">✏️ แก้ไข</button> <button onclick="clearAll()" class="btn" style="color:#ef4444;">ล้าง</button></div></div>
+                    <textarea id="inputData" class="history-area" placeholder="วางสถิติผลรางวัลที่นี่..." readonly></textarea>
+                </div>
+                <div class="input-box-add">
+                    <div class="label-head"><span>➕ เติมงวดใหม่</span><button class="btn" id="btnOrder" onclick="toggleOrder()">⬇ ปกติ</button></div>
+                    <textarea id="newData" class="add-area"></textarea>
+                    <button class="btn-add" onclick="appendAndRun()">เพิ่ม + คำนวณ</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="collapsible-container">
+        <div class="collapsible-header" onclick="toggleSection('dashAnalytics', 'dashIcon1')">
+            <span>📊 แดชบอร์ดวิเคราะห์ผล (Flow & Structure)</span><span id="dashIcon1">▼</span>
+        </div>
+        <div id="dashAnalytics" class="collapsible-content">
+            <div class="dashboard-grid">
+                <div class="flow-section" id="flowPanel" style="display:none;">
+                    <div class="label-head" style="justify-content:center;">🌊 เลขไหล (Flow 10 หลัก)</div>
+                    <div id="flowGridWrapper" class="flow-grid-wrapper"></div>
+                </div>
+                <div class="structure-section" id="structurePanel" style="display:none;">
+                    <div class="label-head" style="justify-content:center;">📊 โครงสร้าง (Structure)</div>
+                    <div id="structGridWrapper" class="struct-grid-wrapper"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="collapsible-container" style="margin-top: 20px;">
+        <div class="collapsible-header" onclick="toggleSection('dashSmartFlow', 'dashIcon2')">
+            <span>📝 จัดชุดไหล (Smart Flow Top 5)</span><span id="dashIcon2">▼</span>
+        </div>
+        <div id="dashSmartFlow" class="collapsible-content">
+            <div class="smart-flow-box" style="margin-top:0; border:none; box-shadow:none;">
+                <div class="sf-header">
+                    <span style="font-size:16px; font-weight:800; color:#b45309;">📝 จัดชุดไหล (Smart Flow Top 5)</span>
+                    <div class="sf-controls">
+                        <select id="sfTarget" class="btn" style="padding:4px;">
+                            <option value="0">1. หลักร้อย</option>
+                            <option value="1">2. หลักสิบบน</option>
+                            <option value="2">3. หลักหน่วยบน</option>
+                            <option value="3">4. พิกัดบน</option>
+                            <option value="4">5. หลักสิบล่าง</option>
+                            <option value="5">6. หลักหน่วยล่าง</option>
+                            <option value="6">7. พิกัดล่าง</option>
+                            <option value="7">8. บน+ล่าง (รวม)</option>
+                            <option value="8">9. แต้มบน</option>
+                            <option value="9">10. แต้มล่าง</option>
+                            <option value="10">11. วินบน (ครบ 2 ตัว)</option>
+                            <option value="11">12. วินล่าง (ครบ 2 ตัว)</option>
+                        </select>
+                        <span style="font-size:12px; font-weight:bold;">เอา:</span>
+                        <input type="number" id="sfLen" value="4" min="1" max="9" style="width:40px;" title="จำนวนตัวเลข">
+                        <span style="font-size:12px; font-weight:bold;">ย้อน:</span>
+                        <input type="number" id="sfLookback" value="10" style="width:40px;" title="จำนวนงวด">
+                        <button class="sf-btn" onclick="genSmartFlow()">🚀 วิเคราะห์</button>
+                        <button class="btn" onclick="copySmartFlow()">Copy All</button>
+                    </div>
+                </div>
+                <div id="sfOutput" class="sf-grid-container"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="control-panel">
+        <div class="display-mode-group">
+            <button class="btn-mode active" id="btnModeAuto" onclick="setMode('auto')">🤖 Auto (Top 5)</button>
+            <button class="btn-mode" id="btnModeAll" onclick="setMode('all')">📜 Manual (ทั้งหมด)</button>
+            <div id="manualControl" class="manual-control">
+                <span>จำนวนสูตร: <input type="number" id="manualLimitInput" class="manual-limit-input" value="100" min="10" onchange="runProgram()"></span>
+            </div>
+        </div>
+
+        <div class="hunt-toggle-group">
+            <button class="btn-hunt active" id="btnHuntOff" onclick="setHunt(false)">🎯 ปกติ</button>
+            <button class="btn-hunt" id="btnHuntOn" onclick="setHunt(true)">🔫 ล่า</button>
+            <span id="huntInputWrap" style="display:none; align-items:center; margin-left:10px;">
+                ตาม <input type="number" id="huntMax" value="3" style="width:40px;"> งวด
+            </span>
+        </div>
+
+        <div style="text-align:center; margin-bottom:15px;">
+            <button class="btn-sort active" id="sortScore" onclick="setSort('score')">🏆 เรียงตามความแม่น</button>
+            <button class="btn-sort" id="sortFixed" onclick="setSort('fixed')">🔤 เรียงตามสูตร (คงที่)</button>
+        </div>
+
+        <div class="settings-bar" style="justify-content: center; gap: 15px; flex-wrap: wrap; background: #f8fafc; border: 1px solid #e2e8f0; padding: 12px; border-radius: 12px; margin-bottom: 20px;">
+            <div style="display:flex; align-items:center; gap:5px;">
+                <span style="font-weight:700; color:#334155;">📅 ล่าสุด:</span>
+                <input type="number" id="rangeCount" value="10" oninput="updateRangeFromCount()" style="width:50px; text-align:center; padding:4px; border:2px solid #cbd5e1; border-radius:6px; font-weight:bold; color:#1e3a8a;">
+                <span style="font-size:13px; font-weight:700; color:#64748b;">งวด</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:5px; border-left:2px solid #e2e8f0; padding-left:10px;">
+                <span style="font-weight:700; color:#334155;">🔎 เริ่ม:</span>
+                <input type="number" id="rangeStart" oninput="updateCountFromRange()" style="width:50px; text-align:center; padding:4px; border:2px solid #cbd5e1; border-radius:6px; font-weight:bold; color:#475569;">
+                <span style="font-weight:700; color:#334155;">ถึง</span>
+                <input type="number" id="rangeEnd" oninput="updateCountFromRange()" style="width:50px; text-align:center; padding:4px; border:2px solid #cbd5e1; border-radius:6px; font-weight:bold; color:#475569;">
+            </div>
+            <div style="display:flex; align-items:center; gap:5px; border-left:2px solid #e2e8f0; padding-left:10px;">
+                <span style="color:#2563eb; font-weight:800;">⏩ ทดสอบ:</span>
+                <input type="number" id="forwardTest" value="0" min="0" max="20" onchange="runProgram()" title="ตัดผลล่าสุดออก X งวดเพื่อทดสอบสูตร" style="width:50px; text-align:center; padding:4px; border:2px solid #3b82f6; border-radius:6px; font-weight:bold; color:#1e3a8a;">
+                <span style="font-size:13px; font-weight:700; color:#2563eb;">งวด</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:5px; border-left:2px solid #e2e8f0; padding-left:10px;">
+                <span style="color:#dc2626; font-weight:800;">⛔ ผิด ≤</span>
+                <input type="number" id="maxLoss" placeholder="-" onchange="runProgram()" title="สูตรต้องผิดรวมไม่เกินนี้" style="width:50px; text-align:center; padding:4px; border:2px solid #ef4444; border-radius:6px; font-weight:bold; color:#b91c1c;">
+            </div>
+            <div style="display:flex; align-items:center; gap:5px;">
+                <span style="color:#dc2626; font-weight:800;">📉 ซ้ำ ≤</span>
+                <input type="number" id="maxConsLoss" placeholder="-" onchange="runProgram()" title="สูตรต้องไม่ผิดติดกันเกินนี้" style="width:50px; text-align:center; padding:4px; border:2px solid #ef4444; border-radius:6px; font-weight:bold; color:#b91c1c;">
+            </div>
+            <div style="display:flex; align-items:center; gap:5px; border-left:2px solid #e2e8f0; padding-left:10px;">
+                <span style="color:#9333ea; font-weight:800;">✂️ ตัดเลข:</span>
+                <input type="text" id="killDigits" placeholder="เช่น 05" onchange="runProgram()" style="width:70px; text-align:center; padding:4px; border:2px solid #a855f7; border-radius:6px; font-weight:bold; color:#6b21a8;">
+            </div>
+        </div>
+
+        <div class="pattern-bar" style="justify-content: space-between;">
+            <div style="display:flex; gap:5px; align-items:center;">
+                <span style="font-weight:bold; font-size:13px;">รูปแบบ:</span>
+                <button class="btn-step active" onclick="setStep('normal', this)">เรียง</button>
+                <button class="btn-step" onclick="setStep('odd', this)">คี่</button>
+                <button class="btn-step" onclick="setStep('even', this)">คู่</button>
+                <button class="btn-step" onclick="setStep('step3', this)">ข้าม3</button>
+            </div>
+            <div style="display:flex; gap:3px; align-items:center;">
+                <span style="font-weight:bold; font-size:13px;">จำนวน:</span>
+                <button class="btn-len" onclick="setLen(1, this)">1</button>
+                <button class="btn-len" onclick="setLen(2, this)">2</button>
+                <button class="btn-len" onclick="setLen(3, this)">3</button>
+                <button class="btn-len" onclick="setLen(4, this)">4</button>
+                <button class="btn-len active" onclick="setLen(5, this)">5</button>
+                <button class="btn-len" onclick="setLen(6, this)">6</button>
+                <button class="btn-len" onclick="setLen(7, this)">7</button>
+                <button class="btn-len" onclick="setLen(8, this)">8</button>
+                <button class="btn-len" onclick="setLen(9, this)">9</button>
+            </div>
+        </div>
+
+        <div class="grid-targets">
+            <button class="btn-target active" onclick="setTarget('hundred')">💯 หลักร้อย</button>
+            <button class="btn-target" onclick="setTarget('tens_up')">⬆️ สิบบน</button>
+            <button class="btn-target" onclick="setTarget('units_up')">↗️ หน่วยบน</button>
+            <button class="btn-target" onclick="setTarget('tens_down')">⬇️ สิบล่าง</button>
+            <button class="btn-target" onclick="setTarget('units_down')">↘️ หน่วยล่าง</button>
+            <button class="btn-target" style="color:var(--p); border-color:var(--p);" onclick="setTarget('tf_up')">🏃 บน (≥1)</button>
+            <button class="btn-target" style="color:var(--p); border-color:var(--p);" onclick="setTarget('tf_down')">🏃 ล่าง (≥1)</button>
+            <button class="btn-target" style="color:#6610f2; border-color:#6610f2;" onclick="setTarget('pair_up')">🍒 วินบน (2)</button>
+            <button class="btn-target" style="color:#6610f2; border-color:#6610f2;" onclick="setTarget('pair_down')">🍒 วินล่าง (2)</button>
+            <button class="btn-target" style="color:#dc3545; border-color:#dc3545;" onclick="setTarget('any_no_hundred')">🎲 บน/ล่าง*</button>
+        </div>
+
+        <button class="btn-add" style="background:var(--p); width:200px; display:block; margin:0 auto;" onclick="runProgram()">🚀 คำนวณใหม่</button>
+    </div>
+
+    <div id="loading" style="text-align:center; padding:20px; display:none; color:#888;">⏳ กำลังประมวลผล...</div>
+    <div class="table-wrapper" id="tableWrapper" style="display:none;"><div id="resultContainer"></div></div>
+    
+    <div id="tableFooterControls" class="table-footer-controls">
+        <button class="page-btn" onclick="changePage(-1)">❮ ก่อนหน้า</button>
+        <span id="pageInfo" class="page-info">1-10</span>
+        <button class="page-btn" onclick="changePage(1)">ถัดไป ❯</button>
+    </div>
+
+    <div id="consensusSection" class="consensus-box" style="display:none; margin-top:20px; padding:15px; background:#fff7ed; border:2px solid #fdba74; border-radius:15px; text-align:center;">
+        <div style="font-size:20px; font-weight:800; color:#9a3412; margin-bottom:10px;">🏆 สรุปเลขชน</div>
+        <div id="consensusContent" style="display:flex; justify-content:center; gap:10px; flex-wrap:wrap;"></div>
+    </div>
+    
+    <div id="copyArea" class="copy-container" style="display:none;">
+        <button class="btn-line" onclick="copyToLine()">📋 คัดลอกผลทั้งหมด</button>
+    </div>
+
+    <div class="vin-flow-section" id="vinFlowSection" style="display:none;">
+        <div class="vin-header">
+            <div class="vin-title">💰 จับวินเลขไหล (Auto Flow Vin)</div>
+            <div>ตัดกี่ตัว: <input type="number" id="vinFlowLimit" value="5" min="2" max="9" onchange="calcVinFlow()" style="width:40px;"> 
+            ตัดแต้ม: <input type="text" id="vinFlowSumKill" placeholder="05" onkeyup="calcVinFlow()" style="width:50px;"></div>
+        </div>
+        <div class="vin-grid">
+            <div class="vin-box">
+                <div class="vin-head bg-vin-up"><span>🍒 วินบน</span><button class="btn-tiny" onclick="copyFlowVin('up')">Copy</button></div>
+                <div id="vinFlowUpContent" class="vin-body">...</div>
+            </div>
+            <div class="vin-box">
+                <div class="vin-head bg-vin-down"><span>🍒 วินล่าง</span><button class="btn-tiny" onclick="copyFlowVin('down')">Copy</button></div>
+                <div id="vinFlowDownContent" class="vin-body">...</div>
+            </div>
+        </div>
+    </div>
+
+    <div style="height:50px;"></div>
+    <div id="toast" class="toast">✅ คัดลอกเรียบร้อย!</div>
+    <input type="hidden" id="manualLimitInput" value="100">
+</div>
+
+<script src="script.js"></script>
+
+</body>
+</html>
