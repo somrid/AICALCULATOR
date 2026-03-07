@@ -261,7 +261,8 @@ function calculateGrid() {
     let workingData = [...dataList].reverse();
     const totalRounds = workingData.length;
     
-    // บังคับให้มีแถวทำนายเพิ่ม 1 แถวเสมอ เพื่อดูเลขงวดถัดไป [cite: 2026-03-05]
+    // --- ลอจิกหลัก: บังคับให้มีแถวทำนายงวดถัดไปเสมอตามที่คุณครูทบทวน --- [cite: 2026-03-07]
+    // ไม่ว่าเศษจะเป็น 1, 2, 3 (Case 1) หรือเศษเป็น 0 (Case 2) ระบบจะบวกเพิ่ม 1 แถวเสมอ
     let totalLines = Math.floor(totalRounds / huntCount) + 1;
     const linesToProcess = Math.min(totalLines, limitLines + 1);
 
@@ -277,7 +278,7 @@ function calculateGrid() {
     
     // ตัวแปรสำหรับเก็บสถิติสรุปผล
     let hitStats = Array(formulaCount).fill(0);
-    let streaks = Array(formulaCount).fill(0); // เก็บค่าความต่อเนื่อง (Streak) [cite: 2026-03-05]
+    let streaks = Array(formulaCount).fill(0); 
     let realRowsCount = 0; 
 
     // 4. วนลูปสร้างแถวข้อมูลในตาราง
@@ -294,7 +295,7 @@ function calculateGrid() {
                 rowItems.push(`${workingData[idx].top}-${workingData[idx].bot}`);
             } else {
                 rowItems.push(`???-??`);
-                hasIncompleteData = true; 
+                hasIncompleteData = true; // ยืนยันว่าเป็นบรรทัดที่ข้อมูลยังไม่ครบ [cite: 2026-03-07]
             }
         }
         
@@ -302,15 +303,20 @@ function calculateGrid() {
         if (!isFutureRow) realRowsCount++; 
         
         const statHtml = rowItems.join(' * ');
-        let rowHtml = `<td class="font-bold">${l + 1}</td><td class="stat-col">${statHtml}</td>`;
+        // ปรับสีลำดับบรรทัดทำนายให้เด่นชัด [cite: 2026-03-07]
+        const rowLabelClass = isFutureRow ? "bg-amber-100 text-amber-900 font-black ring-1 ring-amber-300" : "font-bold";
+        let rowHtml = `<td class="${rowLabelClass}">${l + 1}</td><td class="stat-col">${statHtml}</td>`;
 
         for (let f = 0; f < formulaCount; f++) {
             // --- ลอจิกการหาข้อมูลงวดฐาน (Base) เพื่อเข้าสูตร ---
-            // หากมีการตั้งค่า Test Rounds ระบบจะถอยจุดคำนวณไปในอดีตเพื่อทดสอบการเดินหน้า [cite: 2026-03-05]
+            // คำนวณจากงวดสุดท้ายก่อนที่จะเริ่ม "ชุดการล่า" ในบรรทัดนั้นๆ [cite: 2026-03-07]
             let formulaBaseIdx = (l * huntCount) - 1 - testRounds;
             
-            // ป้องกันดัชนีติดลบหรือเกินขอบเขตข้อมูลที่มีจริง
-            if (formulaBaseIdx >= workingData.length) formulaBaseIdx = workingData.length - 1;
+            // กรณีเป็นบรรทัดทำนายที่ขึ้นใหม่เอี่ยม (Case 2: เศษ 0) ให้ใช้ข้อมูลล่าสุดที่มีจริง [cite: 2026-03-07]
+            if (isFutureRow && formulaBaseIdx >= workingData.length) {
+                formulaBaseIdx = workingData.length - 1 - testRounds;
+            }
+
             const prevData = (formulaBaseIdx >= 0) ? workingData[formulaBaseIdx] : workingData[0];
             
             // คำนวณเลขจากสูตรแม่นยำ (Deterministic) [cite: 2026-03-05]
@@ -324,7 +330,7 @@ function calculateGrid() {
                         const res = workingData[idx];
                         let checkStr = "";
                         
-                        // แยกหลักตามตำแหน่งที่เลือกตามความต้องการของคุณครู [cite: 2026-03-05]
+                        // แยกหลักตามตำแหน่งที่เลือก [cite: 2026-03-05]
                         if(target === 'hundred') checkStr = res.top[0];
                         else if(target === 'topTen') checkStr = res.top[1];
                         else if(target === 'topUnit') checkStr = res.top[2];
@@ -342,7 +348,7 @@ function calculateGrid() {
                     }
                 }
                 
-                // คำนวณ Streak สำหรับงวดล่าสุด (ตรวจสอบความต่อเนื่องจากล่างขึ้นบน) [cite: 2026-03-05]
+                // คำนวณสถานะล่าสุด (Streak) [cite: 2026-03-05, 2026-03-07]
                 if (hitRound > 0) {
                     hitStats[f]++;
                     if (streaks[f] >= 0) streaks[f]++; else streaks[f] = 1;
@@ -353,7 +359,8 @@ function calculateGrid() {
 
             // แสดงผลในเซลล์
             if (isFutureRow) {
-                rowHtml += `<td class="font-bold text-blue-900 bg-white">${mockDigits}</td>`;
+                // บรรทัดทำนาย: เน้นสีน้ำเงิน พื้นหลังขาว และเพิ่มเงาให้ดูเด่น [cite: 2026-03-07]
+                rowHtml += `<td class="font-black text-blue-900 bg-white ring-2 ring-blue-500 ring-inset shadow-inner">${mockDigits}</td>`;
             } else {
                 const cellClass = hitRound > 0 ? 'hit-cell' : 'miss-cell';
                 rowHtml += `<td class="${cellClass}">${mockDigits}(${hitRound})</td>`;
@@ -363,16 +370,16 @@ function calculateGrid() {
         gridBody.appendChild(tr);
     }
     
-    // 5. สรุปผล Footer และวิเคราะห์ความเสถียร (Stability Analysis) [cite: 2026-03-05]
+    // 5. สรุปผล Footer และวิเคราะห์ความเสถียร (Stability Analysis) [cite: 2026-03-05, 2026-03-07]
     const gridFoot = document.getElementById('gridFoot');
     let footHtml = "";
 
-    // แถวที่ 1: จำนวนที่ถูก
-    footHtml += `<tr><td colspan="2" class="text-right p-2 font-bold bg-slate-100">ถูก (ครั้ง) :</td>`;
+    // แถว ถูก (ครั้ง)
+    footHtml += `<tr><td colspan="2" class="text-right p-2 font-bold bg-slate-100 text-green-800">ถูก (ครั้ง) :</td>`;
     hitStats.forEach(hits => footHtml += `<td class="text-green-700 font-black bg-white">${hits}</td>`);
     footHtml += `</tr>`;
 
-    // แถวที่ 2: ความแม่นยำ (%)
+    // แถว ความแม่นยำ (%)
     footHtml += `<tr><td colspan="2" class="text-right p-2 font-bold bg-slate-100 text-blue-600">ความแม่นยำ (%) :</td>`;
     hitStats.forEach(hits => {
         const accuracy = realRowsCount > 0 ? ((hits / realRowsCount) * 100).toFixed(0) : 0;
@@ -380,7 +387,7 @@ function calculateGrid() {
     });
     footHtml += `</tr>`;
 
-    // แถวที่ 3: สถานะปัจจุบัน (Streak) [cite: 2026-03-05]
+    // แถว สถานะล่าสุด (Streak)
     footHtml += `<tr><td colspan="2" class="text-right p-2 font-bold bg-slate-100 text-orange-600">สถานะล่าสุด :</td>`;
     streaks.forEach(s => {
         const color = s > 0 ? 'text-green-600' : 'text-red-600';
@@ -389,7 +396,7 @@ function calculateGrid() {
     });
     footHtml += `</tr>`;
 
-    // แถวที่ 4: จำนวนที่ผิด
+    // แถว ผิด (ครั้ง)
     footHtml += `<tr><td colspan="2" class="text-right p-2 text-red-600 font-bold bg-slate-100">ผิด (ครั้ง) :</td>`;
     hitStats.forEach(hits => {
         const missCount = Math.max(0, realRowsCount - hits);
@@ -405,3 +412,4 @@ function calculateGrid() {
 </script>
 </body>
 </html>
+
