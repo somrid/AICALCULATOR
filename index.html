@@ -54,9 +54,9 @@
                     <button onclick="toggleSort()" id="sortBtn" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl shadow-md transition-all">🔃 เก่าไปใหม่</button>
                 </div>
                 <div class="text-[10px] font-bold text-blue-800 mb-2 flex justify-between items-center">
-                    <span>DASHBOARD ล่าสุด:</span>
-                    <button onclick="clearAll()" class="text-red-500 hover:underline">ล้างทั้งหมด</button>
-                </div>
+    <span id="dashboardTitle">DASHBOARD ล่าสุด: (0 งวด)</span>
+    <button onclick="clearAll()" class="text-red-500 hover:underline">ล้างทั้งหมด</button>
+</div>
                 <div id="dashboard" class="dashboard-list p-2 text-sm space-y-1 mb-4"></div>
                 <div class="mt-2">
                     <span class="text-[10px] font-bold text-gray-500">ฐานข้อมูลดิบ:</span>
@@ -345,8 +345,16 @@ document.getElementById('rawInput').addEventListener('input', function(e) {
 });
 
 function updateDashboard() {
-    // แสดงผลลำดับ 1, 2, 3... จากบนลงล่างตามที่คัดลอกมาวาง เพื่อความเข้าใจง่าย [cite: 2026-03-07]
-    // โดยยึดตามลำดับใน dataList ที่เราจัดเรียงไว้ล่าสุด (Index 0 = ลำดับที่ 1)
+    // 1. คำนวณจำนวนหวยทั้งหมดที่มีในปัจจุบัน [cite: 2026-03-07]
+    const totalRounds = dataList.length;
+    
+    // 2. อัปเดตตัวเลขจำนวนงวดไปที่หัวข้อ DASHBOARD [cite: 2026-03-07]
+    const titleElement = document.getElementById('dashboardTitle');
+    if (titleElement) {
+        titleElement.innerText = `DASHBOARD ล่าสุด: (${totalRounds} งวด)`;
+    }
+
+    // 3. แสดงผลรายการหวยลำดับ 1, 2, 3... จากบนลงล่างตามที่คุณเจ๋งต้องการ [cite: 2026-03-07]
     const dashboardHtml = dataList.map((item, idx) => `
         <div class="flex justify-between border-b pb-1 px-2 hover:bg-blue-50">
             <span class="text-gray-400 font-bold">#${idx + 1}</span>
