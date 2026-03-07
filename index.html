@@ -110,138 +110,215 @@
 </div>
 
 <script>
-    // --- Data Management --- [cite: 2026-03-05]
-    let dataList = [];
-    let isNewestFirst = JSON.parse(localStorage.getItem('isNewestFirst')) ?? false; 
-    let lottoNames = JSON.parse(localStorage.getItem('lottoNames')) || ["1. ยีกี่ (LottoVIP)", "2. ยีกี่ (Ruay)", "3. ยีกี่ (Chudjen)", "4. ฮานอยปกติ", "5. ฮานอยพิเศษ", "6. ลาวพัฒนา", "7. หุ้นนิเคอิ", "8. หุ้นไทย", "9. หุ้นดาวโจนส์", "10. หวยรัฐบาล"];
+// --- 1. ตัวแปรเริ่มต้นและการจัดการฐานข้อมูลแยกกล่อง --- [cite: 2026-03-07]
+let allLottosData = JSON.parse(localStorage.getItem('allLottosData')) || Array.from({length: 10}, () => []);
+let currentLottoIdx = parseInt(localStorage.getItem('currentLottoIdx')) || 0; // จำว่าล่าสุดเปิดหวยไหนไว้ [cite: 2026-03-05]
+let dataList = allLottosData[currentLottoIdx] || []; // ดึงข้อมูลของหวยปัจจุบันมาใช้งาน
 
-    window.addEventListener('DOMContentLoaded', () => {
-        updateLottoDropdown();
-        updateSortButtonText();
-        const savedData = localStorage.getItem('lotteryData');
-        if (savedData) { dataList = JSON.parse(savedData); updateDashboard(); updateRawInput(); }
-    });
+let isNewestFirst = JSON.parse(localStorage.getItem('isNewestFirst')) ?? false; 
+let lottoNames = JSON.parse(localStorage.getItem('lottoNames')) || [
+    "1. ยีกี่ (LottoVIP)", "2. ยีกี่ (Ruay)", "3. ยีกี่ (Chudjen)", 
+    "4. ฮานอยปกติ", "5. ฮานอยพิเศษ", "6. ลาวพัฒนา", 
+    "7. หุ้นนิเคอิ", "8. หุ้นไทย", "9. หุ้นดาวโจนส์", "10. หวยรัฐบาล"
+];
 
-    function saveData() { localStorage.setItem('lotteryData', JSON.stringify(dataList)); localStorage.setItem('lottoNames', JSON.stringify(lottoNames)); }
-    function updateLottoDropdown() { document.getElementById('lottoType').innerHTML = lottoNames.map(name => `<option value="${name}">${name}</option>`).join(''); }
-    function updateSortButtonText() { document.getElementById('sortBtn').innerText = isNewestFirst ? "🔃 ใหม่ไปเก่า" : "🔃 เก่าไปใหม่"; }
+// --- 2. ระบบโหลดข้อมูลเมื่อเปิดหน้าเว็บ --- [cite: 2026-03-05, 2026-03-07]
+window.addEventListener('DOMContentLoaded', () => {
+    updateLottoDropdown(); // สร้างรายการหวย
     
-    function toggleSort() { 
-        isNewestFirst = !isNewestFirst; 
-        localStorage.setItem('isNewestFirst', JSON.stringify(isNewestFirst)); 
-        updateSortButtonText(); 
-        updateDashboard(); 
+    // ตั้งค่า Dropdown ให้ตรงกับรายการล่าสุดที่เลือกไว้ [cite: 2026-03-07]
+    const select = document.getElementById('lottoType');
+    select.selectedIndex = currentLottoIdx;
+    
+    updateSortButtonText();
+    refreshCurrentLottoView(); // แสดงข้อมูลของหวยที่เลือกทันที
+});
+
+// --- 3. ฟังก์ชันสลับหวย (Switching Logic) --- [cite: 2026-03-07]
+function switchLotto() {
+    const select = document.getElementById('lottoType');
+    currentLottoIdx = select.selectedIndex;
+    
+    // บันทึกตำแหน่งที่เลือกไว้ลงเครื่อง [cite: 2026-03-05]
+    localStorage.setItem('currentLottoIdx', currentLottoIdx);
+    
+    // สลับข้อมูล dataList ไปใช้ข้อมูลของหวยรายการใหม่ [cite: 2026-03-07]
+    dataList = allLottosData[currentLottoIdx] || [];
+    
+    // อัปเดตหน้าจอ
+    refreshCurrentLottoView();
+    
+    // ล้างตารางสถิติเก่าออกเมื่อเปลี่ยนหวย เพื่อป้องกันการสับสน
+    const resultArea = document.getElementById('gridResultArea');
+    if (resultArea) resultArea.classList.add('hidden');
+}
+
+function refreshCurrentLottoView() {
+    updateDashboard();
+    updateRawInput();
+}
+
+// --- 4. ฟังก์ชันบันทึกข้อมูล (Save Data) --- [cite: 2026-03-05, 2026-03-07]
+function saveData() {
+    // เก็บข้อมูลปัจจุบันลงในกล่อง (Index) ของหวยที่เลือกอยู่ [cite: 2026-03-07]
+    allLottosData[currentLottoIdx] = dataList;
+    
+    localStorage.setItem('allLottosData', JSON.stringify(allLottosData));
+    localStorage.setItem('lottoNames', JSON.stringify(lottoNames));
+}
+
+// --- 5. ฟังก์ชันจัดการหน้าจออื่นๆ --- [cite: 2026-03-05]
+function updateLottoDropdown() { 
+    // เพิ่ม onchange="switchLotto()" เพื่อให้ทำงานเวลาเลือกหวยใหม่ [cite: 2026-03-07]
+    const select = document.getElementById('lottoType');
+    select.innerHTML = lottoNames.map(name => `<option value="${name}">${name}</option>`).join('');
+    select.setAttribute("onchange", "switchLotto()");
+}
+
+function updateSortButtonText() { 
+    document.getElementById('sortBtn').innerText = isNewestFirst ? "🔃 ใหม่ไปเก่า" : "🔃 เก่าไปใหม่"; 
+}
+
+function toggleSort() { 
+    isNewestFirst = !isNewestFirst; 
+    localStorage.setItem('isNewestFirst', JSON.stringify(isNewestFirst)); 
+    updateSortButtonText(); 
+    updateDashboard(); 
+}
+
+
+// --- SweetAlert2 Dialogs --- [cite: 2026-03-05]
+
+async function editLottoName() {
+    const select = document.getElementById('lottoType');
+    const idx = select.selectedIndex;
+    const { value: newName } = await Swal.fire({
+        title: 'เปลี่ยนชื่อหวย',
+        input: 'text',
+        inputValue: lottoNames[idx],
+        showCancelButton: true,
+        confirmButtonColor: '#3085d6',
+        cancelButtonColor: '#d33',
+        confirmButtonText: 'ตกลง',
+        cancelButtonText: 'ยกเลิก'
+    });
+    
+    // อัปเดตชื่อใน Array และบันทึกลงเครื่อง [cite: 2026-03-07]
+    if (newName) { 
+        lottoNames[idx] = newName.trim(); 
+        updateLottoDropdown(); 
+        select.selectedIndex = idx; 
+        saveData(); 
     }
+}
 
-    // --- SweetAlert2 Dialogs --- [cite: 2026-03-05]
-
-    async function editLottoName() {
-        const select = document.getElementById('lottoType');
-        const idx = select.selectedIndex;
-        const { value: newName } = await Swal.fire({
-            title: 'เปลี่ยนชื่อหวย',
-            input: 'text',
-            inputValue: lottoNames[idx],
-            showCancelButton: true,
-            confirmButtonColor: '#3085d6',
-            cancelButtonColor: '#d33',
-            confirmButtonText: 'ตกลง',
-            cancelButtonText: 'ยกเลิก'
-        });
-        
-        if (newName) { lottoNames[idx] = newName.trim(); updateLottoDropdown(); select.selectedIndex = idx; saveData(); }
-    }
-
-    async function appendNewData() {
-        const { value: raw } = await Swal.fire({
-            title: 'เพิ่มข้อมูลหวย',
-            input: 'textarea',
-            inputPlaceholder: 'วางสถิติ หรือพิมพ์เลข 5 ตัว...',
-            showCancelButton: true,
-            confirmButtonText: 'เพิ่มงวด',
-            cancelButtonText: 'ยกเลิก'
-        });
-
-        if (!raw) return;
-        const items = parseLotteryData(raw);
-        if (items) { 
-            items.forEach(item => dataList.unshift({ ...item, time: new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'}) })); 
-            updateDashboard(); updateRawInput(); saveData();
-            Swal.fire({ icon: 'success', title: 'สำเร็จ', text: `เพิ่มข้อมูล ${items.length} งวดเรียบร้อย`, timer: 1500 });
-        } else { 
-            Swal.fire({ icon: 'error', title: 'ไม่สำเร็จ', text: 'ไม่พบข้อมูลที่ถูกต้อง' }); 
-        }
-    }
-
-    async function clearAll() {
-        const result = await Swal.fire({
-            title: 'ล้างข้อมูลทั้งหมด?',
-            text: "ข้อมูลหวยและชื่อหวยที่แก้ไขจะหายไป!",
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#d33',
-            cancelButtonColor: '#3085d6',
-            confirmButtonText: 'ใช่, ลบเลย!',
-            cancelButtonText: 'ไม่ลบ'
-        });
-
-        if (result.isConfirmed) {
-            dataList = []; updateDashboard(); updateRawInput(); localStorage.removeItem('lotteryData');
-            document.getElementById('gridResultArea').classList.add('hidden');
-            Swal.fire('ลบแล้ว!', 'ข้อมูลของคุณถูกล้างเรียบร้อย', 'success');
-        }
-    }
-
-    // --- Mathematical Logic (deterministic & non-blocking) --- [cite: 2026-03-05]
-    function getDeterministicDigits(formulaIdx, prevData, amount, style) {
-        const h = parseInt(prevData.top[0]), t = parseInt(prevData.top[1]), u = parseInt(prevData.top[2]), bt = parseInt(prevData.bot[0]), bu = parseInt(prevData.bot[1]);
-        let base = 0;
-        switch(formulaIdx % 10) {
-            case 0: base = h + t + 5; break; case 1: base = u + bt + 1; break; case 2: base = h + bu + 9; break; case 3: base = t + u + bt; break; case 4: base = (h * 2) + bu; break;
-            case 5: base = t + bt + bu; break; case 6: base = h + u + 3; break; case 7: base = (bt * 2) + 7; break; case 8: base = h + t + u + bt + bu; break; case 9: base = h + formulaIdx + 2; break;
-        }
-        let startDigit = Math.abs(base) % 10, pool = [0,1,2,3,4,5,6,7,8,9];
-        if (style === 'sequential') {
-            let rotated = pool.slice(startDigit).concat(pool.slice(0, startDigit));
-            return rotated.slice(0, amount).join('');
-        } else {
-            let seed = (formulaIdx + startDigit) % 10, mixedPool = [], tempPool = [...pool];
-            for (let i = 0; i < 10; i++) { let jump = (seed + (i * 3)) % tempPool.length; mixedPool.push(tempPool.splice(jump, 1)[0]); }
-            return mixedPool.slice(0, amount).join('');
-        }
-    }
-
-    function parseLotteryData(input) {
-        let results = [];
-        const shorthand = input.match(/\b\d{5}\b/g);
-        if (shorthand) { shorthand.forEach(str => results.push({ top: str.substring(0, 3), bot: str.substring(3, 5) })); return results; }
-        const topP = /3ตัวบน\s*(\d{3})/g, botP = /2ตัวล่าง\s*(\d{2})/g;
-        let tops = [...input.matchAll(topP)], bots = [...input.matchAll(botP)];
-        for (let i = 0; i < tops.length; i++) { if (bots[i]) results.push({ top: tops[i][1], bot: bots[i][1] }); }
-        return results.length > 0 ? results : null;
-    }
-
-    document.getElementById('rawInput').addEventListener('input', function(e) {
-        const text = e.target.value.trim();
-        if (!text) { dataList = []; updateDashboard(); saveData(); return; }
-        dataList = text.split('\n').map(line => {
-            const pts = line.trim().split(/\s+/);
-            return { top: pts[0] || "???", bot: pts[1] || "??", time: "แก้ไขมือ" };
-        }).filter(i => i.top !== "???");
-        updateDashboard(); saveData();
+async function appendNewData() {
+    const { value: raw } = await Swal.fire({
+        title: 'เพิ่มข้อมูลหวย',
+        input: 'textarea',
+        inputPlaceholder: 'วางสถิติ หรือพิมพ์เลข 5 ตัว...',
+        showCancelButton: true,
+        confirmButtonText: 'เพิ่มงวด',
+        cancelButtonText: 'ยกเลิก'
     });
 
-    function updateDashboard() {
-        const list = isNewestFirst ? [...dataList] : [...dataList].reverse();
-        document.getElementById('dashboard').innerHTML = list.map((item, idx) => `
-            <div class="flex justify-between border-b pb-1 px-2 hover:bg-blue-50">
-                <span class="text-gray-400 font-bold">#${dataList.length - (isNewestFirst ? idx : (dataList.length - 1 - idx))}</span>
-                <span class="font-bold text-blue-700">${item.top} - ${item.bot}</span>
-                <span class="text-[9px] text-gray-400">${item.time}</span>
-            </div>`).join('');
+    if (!raw) return;
+    const items = parseLotteryData(raw);
+    if (items) { 
+        // เพิ่มข้อมูลลงใน dataList ปัจจุบัน [cite: 2026-03-05]
+        items.forEach(item => {
+            dataList.unshift({ 
+                ...item, 
+                time: new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'}) 
+            });
+        }); 
+        updateDashboard(); 
+        updateRawInput(); 
+        saveData(); // บันทึกลงกล่องของหวยที่เลือกอยู่ [cite: 2026-03-07]
+        Swal.fire({ icon: 'success', title: 'สำเร็จ', text: `เพิ่มข้อมูล ${items.length} งวดเรียบร้อย`, timer: 1500 });
+    } else { 
+        Swal.fire({ icon: 'error', title: 'ไม่สำเร็จ', text: 'ไม่พบข้อมูลที่ถูกต้อง' }); 
     }
+}
 
-    function updateRawInput() { document.getElementById('rawInput').value = dataList.map(i => `${i.top} ${i.bot}`).join('\n'); }
+async function clearAll() {
+    // ปรับให้เป็นการล้างข้อมูล "เฉพาะหวยที่เลือก" เพื่อความปลอดภัยครับ [cite: 2026-03-07]
+    const result = await Swal.fire({
+        title: 'ล้างข้อมูลหวยนี้?',
+        text: `ข้อมูลใน ${lottoNames[currentLottoIdx]} จะหายไปทั้งหมด!`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#3085d6',
+        confirmButtonText: 'ใช่, ลบเลย!',
+        cancelButtonText: 'ไม่ลบ'
+    });
+
+    if (result.isConfirmed) {
+        dataList = []; 
+        updateDashboard(); 
+        updateRawInput(); 
+        saveData(); // บันทึกสถานะว่างเปล่าลงในกล่องหวยนี้ [cite: 2026-03-07]
+        document.getElementById('gridResultArea').classList.add('hidden');
+        Swal.fire('ลบแล้ว!', 'ข้อมูลเฉพาะหวยนี้ถูกล้างเรียบร้อย', 'success');
+    }
+}
+
+// --- Mathematical Logic --- [cite: 2026-03-05]
+function getDeterministicDigits(formulaIdx, prevData, amount, style) {
+    const h = parseInt(prevData.top[0]), t = parseInt(prevData.top[1]), u = parseInt(prevData.top[2]), bt = parseInt(prevData.bot[0]), bu = parseInt(prevData.bot[1]);
+    let base = 0;
+    switch(formulaIdx % 10) {
+        case 0: base = h + t + 5; break; case 1: base = u + bt + 1; break; case 2: base = h + bu + 9; break; case 3: base = t + u + bt; break; case 4: base = (h * 2) + bu; break;
+        case 5: base = t + bt + bu; break; case 6: base = h + u + 3; break; case 7: base = (bt * 2) + 7; break; case 8: base = h + t + u + bt + bu; break; case 9: base = h + formulaIdx + 2; break;
+    }
+    let startDigit = Math.abs(base) % 10, pool = [0,1,2,3,4,5,6,7,8,9];
+    if (style === 'sequential') {
+        let rotated = pool.slice(startDigit).concat(pool.slice(0, startDigit));
+        return rotated.slice(0, amount).join('');
+    } else {
+        let seed = (formulaIdx + startDigit) % 10, mixedPool = [], tempPool = [...pool];
+        for (let i = 0; i < 10; i++) { let jump = (seed + (i * 3)) % tempPool.length; mixedPool.push(tempPool.splice(jump, 1)[0]); }
+        return mixedPool.slice(0, amount).join('');
+    }
+}
+
+function parseLotteryData(input) {
+    let results = [];
+    const shorthand = input.match(/\b\d{5}\b/g);
+    if (shorthand) { shorthand.forEach(str => results.push({ top: str.substring(0, 3), bot: str.substring(3, 5) })); return results; }
+    const topP = /3ตัวบน\s*(\d{3})/g, botP = /2ตัวล่าง\s*(\d{2})/g;
+    let tops = [...input.matchAll(topP)], bots = [...input.matchAll(botP)];
+    for (let i = 0; i < tops.length; i++) { if (bots[i]) results.push({ top: tops[i][1], bot: bots[i][1] }); }
+    return results.length > 0 ? results : null;
+}
+
+// แก้ไขส่วน Input ให้บันทึกข้อมูลแยกหวย [cite: 2026-03-07]
+document.getElementById('rawInput').addEventListener('input', function(e) {
+    const text = e.target.value.trim();
+    if (!text) { dataList = []; updateDashboard(); saveData(); return; }
+    dataList = text.split('\n').map(line => {
+        const pts = line.trim().split(/\s+/);
+        return { top: pts[0] || "???", bot: pts[1] || "??", time: "แก้ไขมือ" };
+    }).filter(i => i.top !== "???");
+    updateDashboard(); 
+    saveData(); // บันทึกลงกล่องหวยปัจจุบัน [cite: 2026-03-07]
+});
+
+function updateDashboard() {
+    const list = isNewestFirst ? [...dataList] : [...dataList].reverse();
+    document.getElementById('dashboard').innerHTML = list.map((item, idx) => `
+        <div class="flex justify-between border-b pb-1 px-2 hover:bg-blue-50">
+            <span class="text-gray-400 font-bold">#${dataList.length - (isNewestFirst ? idx : (dataList.length - 1 - idx))}</span>
+            <span class="font-bold text-blue-700">${item.top} - ${item.bot}</span>
+            <span class="text-[9px] text-gray-400">${item.time}</span>
+        </div>`).join('');
+}
+
+function updateRawInput() { 
+    document.getElementById('rawInput').value = dataList.map(i => `${i.top} ${i.bot}`).join('\n'); 
+}
+   
 
 function calculateGrid() {
     const huntCount = parseInt(document.getElementById('roundsToHunt').value) || 1;
