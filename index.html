@@ -244,93 +244,84 @@
     function updateRawInput() { document.getElementById('rawInput').value = dataList.map(i => `${i.top} ${i.bot}`).join('\n'); }
 
 function calculateGrid() {
-    // 1. ดึงค่ากำหนดการต่างๆ จากหน้าจอ
     const huntCount = parseInt(document.getElementById('roundsToHunt').value) || 1;
     const formulaCount = parseInt(document.getElementById('formulaCount').value) || 5;
     const limitLines = parseInt(document.getElementById('historyLines').value) || 10;
     const digitAmount = parseInt(document.getElementById('digitAmount').value) || 3;
     const target = document.getElementById('targetPos').value;
     const digitStyle = document.getElementById('digitStyle').value; 
-    
-    // ดึงค่าจำนวนงวดที่ต้องการทดสอบเดินหน้า (Forward Test) [cite: 2026-03-05]
     const testRounds = parseInt(document.getElementById('testRounds')?.value) || 0;
 
     if (dataList.length < 1) return Swal.fire({ icon: 'info', title: 'แจ้งเตือน', text: 'กรุณาเพิ่มข้อมูลหวยก่อนครับ' });
 
-    // 2. เตรียมข้อมูล (เรียงจาก เก่า -> ใหม่ เพื่อใช้คำนวณสูตร) [cite: 2026-03-05]
     let workingData = [...dataList].reverse();
     const totalRounds = workingData.length;
-    
-    // --- ลอจิกหลัก: บังคับให้มีแถวทำนายงวดถัดไปเสมอตามที่คุณครูทบทวน --- [cite: 2026-03-07]
-    // ไม่ว่าเศษจะเป็น 1, 2, 3 (Case 1) หรือเศษเป็น 0 (Case 2) ระบบจะบวกเพิ่ม 1 แถวเสมอ
     let totalLines = Math.floor(totalRounds / huntCount) + 1;
     const linesToProcess = Math.min(totalLines, limitLines + 1);
 
-    // 3. สร้างส่วนหัวตาราง (Header)
     const gridHead = document.getElementById('gridHead');
-    let headHtml = `<tr><th width="50">ลำดับ</th><th width="320">สถิติชุดการล่า (บน-ล่าง)</th>`;
-    for(let f=1; f<=formulaCount; f++) headHtml += `<th>สูตร ${f}</th>`;
-    gridHead.innerHTML = headHtml + `</tr>`;
+    gridHead.innerHTML = `<tr><th width="50">ลำดับ</th><th width="320">สถิติชุดการล่า (บน-ล่าง)</th>` + 
+        Array.from({length: formulaCount}, (_, i) => `<th>สูตร ${i+1}</th>`).join('') + `</tr>`;
 
     const gridBody = document.getElementById('gridBody');
     gridBody.innerHTML = '';
     const rowColors = ['row-pink', 'row-yellow', 'row-purple', 'row-cyan', 'row-green'];
     
-    // ตัวแปรสำหรับเก็บสถิติสรุปผล
     let hitStats = Array(formulaCount).fill(0);
-    let streaks = Array(formulaCount).fill(0); 
+    let streaks = Array(formulaCount).fill(0);
+    let doubleStats = 0; // เก็บสถิติงวดที่เกิดเลขเบิ้ล [cite: 2026-03-07]
     let realRowsCount = 0; 
 
-    // 4. วนลูปสร้างแถวข้อมูลในตาราง
     for (let l = 0; l < linesToProcess; l++) {
         const tr = document.createElement('tr');
         tr.className = rowColors[l % rowColors.length];
-
         let rowItems = [];
-        let hasIncompleteData = false; 
+        let hasIncompleteData = false;
+        let rowHasDouble = false; // เช็กเลขเบิ้ลในแถวนี้ [cite: 2026-03-07]
 
         for (let i = 0; i < huntCount; i++) {
             const idx = (l * huntCount) + i;
-            if (idx < workingData.length) {
-                rowItems.push(`${workingData[idx].top}-${workingData[idx].bot}`);
+            if (idx < totalRounds) {
+                const res = workingData[idx];
+                rowItems.push(`${res.top}-${res.bot}`);
+                
+                // --- ตรรกะตรวจจับเลขเบิ้ล (Double Detection) --- [cite: 2026-03-07]
+                // เช็กเบิ้ลบน (2 ตัวท้าย) หรือ เบิ้ลล่าง
+                const isDoubleTop = res.top[1] === res.top[2];
+                const isDoubleBot = res.bot[0] === res.bot[1];
+                if (isDoubleTop || isDoubleBot) rowHasDouble = true;
             } else {
                 rowItems.push(`???-??`);
-                hasIncompleteData = true; // ยืนยันว่าเป็นบรรทัดที่ข้อมูลยังไม่ครบ [cite: 2026-03-07]
+                hasIncompleteData = true;
             }
         }
         
         const isFutureRow = hasIncompleteData; 
-        if (!isFutureRow) realRowsCount++; 
+        if (!isFutureRow) {
+            realRowsCount++;
+            if (rowHasDouble) doubleStats++; // นับจำนวนบรรทัดที่มีเลขเบิ้ล [cite: 2026-03-07]
+        }
         
-        const statHtml = rowItems.join(' * ');
-        // ปรับสีลำดับบรรทัดทำนายให้เด่นชัด [cite: 2026-03-07]
-        const rowLabelClass = isFutureRow ? "bg-amber-100 text-amber-900 font-black ring-1 ring-amber-300" : "font-bold";
-        let rowHtml = `<td class="${rowLabelClass}">${l + 1}</td><td class="stat-col">${statHtml}</td>`;
+        // แสดงสัญลักษณ์ 🔔 หากบรรทัดนั้นมีเลขเบิ้ล
+        const doubleIcon = rowHasDouble ? '<span title="มีเลขเบิ้ลในชุดนี้">🔔</span>' : '';
+        let rowHtml = `<td class="${isFutureRow ? 'bg-amber-100 font-black' : 'font-bold'}">${l + 1} ${doubleIcon}</td><td class="stat-col">${rowItems.join(' * ')}</td>`;
 
         for (let f = 0; f < formulaCount; f++) {
-            // --- ลอจิกการหาข้อมูลงวดฐาน (Base) เพื่อเข้าสูตร ---
-            // คำนวณจากงวดสุดท้ายก่อนที่จะเริ่ม "ชุดการล่า" ในบรรทัดนั้นๆ [cite: 2026-03-07]
             let formulaBaseIdx = (l * huntCount) - 1 - testRounds;
+            if (isFutureRow && formulaBaseIdx >= totalRounds) formulaBaseIdx = totalRounds - 1 - testRounds;
             
-            // กรณีเป็นบรรทัดทำนายที่ขึ้นใหม่เอี่ยม (Case 2: เศษ 0) ให้ใช้ข้อมูลล่าสุดที่มีจริง [cite: 2026-03-07]
-            if (isFutureRow && formulaBaseIdx >= workingData.length) {
-                formulaBaseIdx = workingData.length - 1 - testRounds;
-            }
-
             const prevData = (formulaBaseIdx >= 0) ? workingData[formulaBaseIdx] : workingData[0];
-            
-            // คำนวณเลขจากสูตรแม่นยำ (Deterministic) [cite: 2026-03-05]
             let mockDigits = getDeterministicDigits(f, prevData, digitAmount, digitStyle);
             let hitRound = 0; 
 
             if (!isFutureRow) {
                 for (let i = 0; i < huntCount; i++) {
                     const idx = (l * huntCount) + i;
-                    if (idx < workingData.length) {
+                    if (idx < totalRounds) {
                         const res = workingData[idx];
                         let checkStr = "";
                         
-                        // แยกหลักตามตำแหน่งที่เลือก [cite: 2026-03-05]
+                        // แยกหลักตามตำแหน่งที่เลือก
                         if(target === 'hundred') checkStr = res.top[0];
                         else if(target === 'topTen') checkStr = res.top[1];
                         else if(target === 'topUnit') checkStr = res.top[2];
@@ -340,15 +331,25 @@ function calculateGrid() {
                         else if(target === 'botTenUnit') checkStr = res.bot;
                         else if(target === 'allTenUnit') checkStr = res.top.substring(1) + res.bot;
                         else if(target === 'allTop') checkStr = res.top;
-                        else checkStr = (target.includes('winTop')) ? res.top : res.bot;
+                        else if(target === 'winTop') checkStr = res.top.substring(1); // วินบน 2 ตัว [cite: 2026-03-07]
+                        else if(target === 'winBot') checkStr = res.bot; // วินล่าง 2 ตัว [cite: 2026-03-07]
 
-                        if (mockDigits.split('').some(d => checkStr.includes(d))) {
-                            hitRound = i + 1; break;
+                        // --- แก้ไขลอจิก "วิน" (Win Logic) ให้แม่นยำ 100% --- [cite: 2026-03-07]
+                        if (target.includes('win') || target.includes('TenUnit')) {
+                            // ต้องมีครบทุกตัวในผลรางวัล ถึงจะถือว่าถูก (Win)
+                            const resDigits = checkStr.split('');
+                            const isWin = resDigits.every(d => mockDigits.includes(d));
+                            if (isWin) { hitRound = i + 1; break; }
+                        } else {
+                            // เลขเด่น: มีตัวใดตัวหนึ่งตรงถือว่าถูก [cite: 2026-03-05]
+                            if (mockDigits.split('').some(d => checkStr.includes(d))) {
+                                hitRound = i + 1; break;
+                            }
                         }
                     }
                 }
                 
-                // คำนวณสถานะล่าสุด (Streak) [cite: 2026-03-05, 2026-03-07]
+                // คำนวณ Streak
                 if (hitRound > 0) {
                     hitStats[f]++;
                     if (streaks[f] >= 0) streaks[f]++; else streaks[f] = 1;
@@ -357,52 +358,29 @@ function calculateGrid() {
                 }
             }
 
-            // แสดงผลในเซลล์
             if (isFutureRow) {
-                // บรรทัดทำนาย: เน้นสีน้ำเงิน พื้นหลังขาว และเพิ่มเงาให้ดูเด่น [cite: 2026-03-07]
-                rowHtml += `<td class="font-black text-blue-900 bg-white ring-2 ring-blue-500 ring-inset shadow-inner">${mockDigits}</td>`;
+                rowHtml += `<td class="font-black text-blue-900 bg-white ring-2 ring-blue-500 ring-inset">${mockDigits}</td>`;
             } else {
-                const cellClass = hitRound > 0 ? 'hit-cell' : 'miss-cell';
-                rowHtml += `<td class="${cellClass}">${mockDigits}(${hitRound})</td>`;
+                rowHtml += `<td class="${hitRound > 0 ? 'hit-cell' : 'miss-cell'}">${mockDigits}(${hitRound})</td>`;
             }
         }
         tr.innerHTML = rowHtml;
         gridBody.appendChild(tr);
     }
     
-    // 5. สรุปผล Footer และวิเคราะห์ความเสถียร (Stability Analysis) [cite: 2026-03-05, 2026-03-07]
+    // --- ปรับปรุง Footer ให้แสดงสถิติเลขเบิ้ล --- [cite: 2026-03-07]
     const gridFoot = document.getElementById('gridFoot');
-    let footHtml = "";
+    let footHtml = `<tr><td colspan="2" class="text-right p-2 font-bold bg-slate-100">ถูก (ครั้ง) :</td>` + 
+        hitStats.map(h => `<td class="text-green-700 font-black bg-white">${h}</td>`).join('') + `</tr>`;
+    
+    footHtml += `<tr><td colspan="2" class="text-right p-2 font-bold bg-slate-100 text-blue-600">ความแม่นยำ (%) :</td>` + 
+        hitStats.map(h => `<td class="font-black bg-white text-blue-700">${realRowsCount > 0 ? ((h/realRowsCount)*100).toFixed(0) : 0}%</td>`).join('') + `</tr>`;
 
-    // แถว ถูก (ครั้ง)
-    footHtml += `<tr><td colspan="2" class="text-right p-2 font-bold bg-slate-100 text-green-800">ถูก (ครั้ง) :</td>`;
-    hitStats.forEach(hits => footHtml += `<td class="text-green-700 font-black bg-white">${hits}</td>`);
-    footHtml += `</tr>`;
+    footHtml += `<tr><td colspan="2" class="text-right p-2 font-bold bg-slate-100 text-orange-600">สถานะล่าสุด (Streak) :</td>` + 
+        streaks.map(s => `<td class="${s > 0 ? 'text-green-600' : 'text-red-600'} font-black bg-white text-xs">${s > 0 ? `+${s}` : s}</td>`).join('') + `</tr>`;
 
-    // แถว ความแม่นยำ (%)
-    footHtml += `<tr><td colspan="2" class="text-right p-2 font-bold bg-slate-100 text-blue-600">ความแม่นยำ (%) :</td>`;
-    hitStats.forEach(hits => {
-        const accuracy = realRowsCount > 0 ? ((hits / realRowsCount) * 100).toFixed(0) : 0;
-        footHtml += `<td class="font-black bg-white text-blue-700">${accuracy}%</td>`;
-    });
-    footHtml += `</tr>`;
-
-    // แถว สถานะล่าสุด (Streak)
-    footHtml += `<tr><td colspan="2" class="text-right p-2 font-bold bg-slate-100 text-orange-600">สถานะล่าสุด :</td>`;
-    streaks.forEach(s => {
-        const color = s > 0 ? 'text-green-600' : 'text-red-600';
-        const label = s > 0 ? `+${s}` : `${s}`;
-        footHtml += `<td class="${color} font-black bg-white text-xs">${label}</td>`;
-    });
-    footHtml += `</tr>`;
-
-    // แถว ผิด (ครั้ง)
-    footHtml += `<tr><td colspan="2" class="text-right p-2 text-red-600 font-bold bg-slate-100">ผิด (ครั้ง) :</td>`;
-    hitStats.forEach(hits => {
-        const missCount = Math.max(0, realRowsCount - hits);
-        footHtml += `<td class="text-red-700 font-black bg-white">${missCount}</td>`;
-    });
-    footHtml += `</tr>`;
+    // เพิ่มบรรทัดสถิติเลขเบิ้ล [cite: 2026-03-07]
+    footHtml += `<tr><td colspan="2" class="text-right p-2 font-bold bg-indigo-50 text-indigo-700">งวดที่พบเลขเบิ้ล 🔔 :</td><td colspan="${formulaCount}" class="text-left px-4 font-bold bg-white text-indigo-800">${doubleStats} บรรทัด (จากทั้งหมด ${realRowsCount})</td></tr>`;
 
     gridFoot.innerHTML = footHtml;
     document.getElementById('gridResultArea').classList.remove('hidden');
