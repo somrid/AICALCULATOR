@@ -101,6 +101,19 @@
         </div>
     </div>
 
+<div id="recommendedArea" class="hidden mb-6">
+    <div class="bg-gradient-to-r from-amber-500 to-orange-600 p-1 rounded-2xl shadow-lg">
+        <div class="bg-white rounded-xl p-4">
+            <div class="flex items-center gap-2 mb-3">
+                <span class="text-2xl">🔥</span>
+                <h3 class="font-black text-orange-600">สูตรแนะนำ (กำลังเดินดี)</h3>
+            </div>
+            <div id="recommendedList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                </div>
+        </div>
+    </div>
+</div>
+
     <div id="gridResultArea" class="mt-8 hidden">
         <div class="bg-green-700 text-white p-2 text-center font-bold text-sm rounded-t-xl">วิเคราะห์สถิติแยกตามสูตรแม่นยำ</div>
         <div class="overflow-x-auto border-x border-b rounded-b-xl shadow-xl bg-white">
@@ -216,28 +229,44 @@ async function appendNewData() {
     const { value: raw } = await Swal.fire({
         title: 'เพิ่มข้อมูลหวย',
         input: 'textarea',
-        inputPlaceholder: 'วางสถิติ หรือพิมพ์เลข 5 ตัว...',
+        inputPlaceholder: 'วางสถิติจากเว็บ (ระบบจะจัดเรียงให้อัตโนมัติ)...',
         showCancelButton: true,
         confirmButtonText: 'เพิ่มงวด',
         cancelButtonText: 'ยกเลิก'
     });
 
     if (!raw) return;
-    const items = parseLotteryData(raw);
+    
+    // ใช้ Smart Parser อ่านข้อมูล (ได้ผลลัพธ์เรียงจาก ใหม่ -> เก่า ตามเว็บต้นทาง) [cite: 2026-03-07]
+    const items = parseLotteryData(raw); 
+    
     if (items) { 
-        // เพิ่มข้อมูลลงใน dataList ปัจจุบัน [cite: 2026-03-05]
-        items.forEach(item => {
-            dataList.unshift({ 
-                ...item, 
-                time: new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'}) 
-            });
-        }); 
+        // 1. นำงวดใหม่มาใส่เวลาปัจจุบัน [cite: 2026-03-05]
+        const newItemsWithTime = items.map(item => ({
+            ...item,
+            time: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
+        }));
+
+        // 2. จุดสำคัญ: นำชุดข้อมูลใหม่ "ทั้งก้อน" มาต่อข้างหน้า dataList เดิม [cite: 2026-03-07]
+        // เพื่อให้ลำดับ ใหม่ -> เก่า คงเดิม ไม่สลับกันเองเหมือนการใช้ unshift ในลูป
+        dataList = [...newItemsWithTime, ...dataList]; 
+
         updateDashboard(); 
         updateRawInput(); 
         saveData(); // บันทึกลงกล่องของหวยที่เลือกอยู่ [cite: 2026-03-07]
-        Swal.fire({ icon: 'success', title: 'สำเร็จ', text: `เพิ่มข้อมูล ${items.length} งวดเรียบร้อย`, timer: 1500 });
+        
+        Swal.fire({ 
+            icon: 'success', 
+            title: 'สำเร็จ', 
+            text: `เพิ่มข้อมูล ${items.length} งวดเรียบร้อย`, 
+            timer: 1500 
+        });
     } else { 
-        Swal.fire({ icon: 'error', title: 'ไม่สำเร็จ', text: 'ไม่พบข้อมูลที่ถูกต้อง' }); 
+        Swal.fire({ 
+            icon: 'error', 
+            title: 'ไม่สำเร็จ', 
+            text: 'ไม่พบข้อมูลที่ถูกต้อง' 
+        }); 
     }
 }
 
@@ -283,46 +312,95 @@ function getDeterministicDigits(formulaIdx, prevData, amount, style) {
     }
 }
 
-function parseLotteryData(input) {
-    let results = [];
-    const shorthand = input.match(/\b\d{5}\b/g);
-    if (shorthand) { shorthand.forEach(str => results.push({ top: str.substring(0, 3), bot: str.substring(3, 5) })); return results; }
-    const topP = /3ตัวบน\s*(\d{3})/g, botP = /2ตัวล่าง\s*(\d{2})/g;
-    let tops = [...input.matchAll(topP)], bots = [...input.matchAll(botP)];
-    for (let i = 0; i < tops.length; i++) { if (bots[i]) results.push({ top: tops[i][1], bot: bots[i][1] }); }
-    return results.length > 0 ? results : null;
-}
 
-// แก้ไขส่วน Input ให้บันทึกข้อมูลแยกหวย [cite: 2026-03-07]
+
+// แก้ไขส่วน Input ให้บันทึกข้อมูลแยกหวย และรองรับรูปแบบแนวดิ่ง/ข้ามงวดออกผล [cite: 2026-03-07]
 document.getElementById('rawInput').addEventListener('input', function(e) {
     const text = e.target.value.trim();
-    if (!text) { dataList = []; updateDashboard(); saveData(); return; }
-    dataList = text.split('\n').map(line => {
-        const pts = line.trim().split(/\s+/);
-        return { top: pts[0] || "???", bot: pts[1] || "??", time: "แก้ไขมือ" };
-    }).filter(i => i.top !== "???");
+    
+    if (!text) { 
+        dataList = []; 
+        updateDashboard(); 
+        saveData(); 
+        return; 
+    }
+
+    // ใช้ Smart Parser ที่เราปรับปรุงใหม่มาช่วยอ่านข้อมูล [cite: 2026-03-07]
+    const parsed = parseLotteryData(text);
+    
+    if (parsed) {
+        // แปลงข้อมูลที่อ่านได้มาเก็บใน dataList
+        dataList = parsed.map(item => ({
+            top: item.top,
+            bot: item.bot,
+            time: "แก้ไขมือ" // ระบุที่มาว่ามาจากการพิมพ์/วางเอง [cite: 2026-03-05]
+        }));
+    } else {
+        // หากรูปแบบไม่ถูกต้อง ไม่ต้องล้างข้อมูลเดิมทิ้ง (เผื่อกำลังพิมพ์อยู่)
+        return; 
+    }
+
     updateDashboard(); 
     saveData(); // บันทึกลงกล่องหวยปัจจุบัน [cite: 2026-03-07]
 });
 
 function updateDashboard() {
-    const list = isNewestFirst ? [...dataList] : [...dataList].reverse();
-    document.getElementById('dashboard').innerHTML = list.map((item, idx) => `
+    // แสดงผลลำดับ 1, 2, 3... จากบนลงล่างตามที่คัดลอกมาวาง เพื่อความเข้าใจง่าย [cite: 2026-03-07]
+    // โดยยึดตามลำดับใน dataList ที่เราจัดเรียงไว้ล่าสุด (Index 0 = ลำดับที่ 1)
+    const dashboardHtml = dataList.map((item, idx) => `
         <div class="flex justify-between border-b pb-1 px-2 hover:bg-blue-50">
-            <span class="text-gray-400 font-bold">#${dataList.length - (isNewestFirst ? idx : (dataList.length - 1 - idx))}</span>
+            <span class="text-gray-400 font-bold">#${idx + 1}</span>
             <span class="font-bold text-blue-700">${item.top} - ${item.bot}</span>
             <span class="text-[9px] text-gray-400">${item.time}</span>
         </div>`).join('');
+        
+    document.getElementById('dashboard').innerHTML = dashboardHtml;
 }
 
 function updateRawInput() { 
     document.getElementById('rawInput').value = dataList.map(i => `${i.top} ${i.bot}`).join('\n'); 
 }
    
+// --- 1. ตัวอ่านข้อมูลอัจฉริยะ (Smart Parser) --- [cite: 2026-03-07]
+// รองรับทั้งเลข 5 ตัว, รูปแบบแนวดิ่ง และข้ามบรรทัด "งดออกผล"
+function parseLotteryData(input) {
+    let results = [];
+    
+    // แบบที่ 1: เลข 5 ตัวติดกัน (Shorthand)
+    const shorthand = input.match(/\b\d{5}\b/g);
+    if (shorthand) {
+        shorthand.forEach(str => results.push({ top: str.substring(0, 3), bot: str.substring(3, 5) }));
+        return results;
+    }
+
+    // แบบที่ 2: มีคำสำคัญ (3ตัวบน/2ตัวล่าง)
+    const topP = /3ตัวบน\s*(\d{3})/g, botP = /2ตัวล่าง\s*(\d{2})/g;
+    let tops = [...input.matchAll(topP)], bots = [...input.matchAll(botP)];
+    if (tops.length > 0 && bots.length > 0) {
+        for (let i = 0; i < tops.length; i++) {
+            if (bots[i]) results.push({ top: tops[i][1], bot: bots[i][1] });
+        }
+        return results;
+    }
+
+    // แบบที่ 3: รูปแบบแนวดิ่งและข้าม "งดออกผล" [cite: 2026-03-07]
+    const lines = input.split('\n').map(l => l.trim()).filter(l => l !== "" && l !== "งดออกผล");
+    for (let i = 0; i < lines.length; i++) {
+        // ตรวจจับ: บรรทัดปัจจุบันเป็นเลข 3 หลัก และบรรทัดถัดไปเป็นเลข 2 หลัก
+        if (/^\d{3}$/.test(lines[i]) && i + 1 < lines.length && /^\d{2}$/.test(lines[i+1])) {
+            results.push({ top: lines[i], bot: lines[i+1] });
+            i++; // ข้ามบรรทัดเลขล่างไป
+        }
+    }
+
+    return results.length > 0 ? results : null;
+}
 
 function calculateGrid() {
+    // 1. ดึงค่ากำหนดการต่างๆ (แก้ไข ID ให้ตรงกับ HTML) [cite: 2026-03-07]
     const huntCount = parseInt(document.getElementById('roundsToHunt').value) || 1;
-    const formulaCount = parseInt(document.getElementById('formulaCount').value) || 5;
+    const formulaLimit = parseInt(document.getElementById('formulaCount').value) || 5; 
+    const errorLimit = parseInt(document.getElementById('maxError')?.value) || 0; 
     const limitLines = parseInt(document.getElementById('historyLines').value) || 10;
     const digitAmount = parseInt(document.getElementById('digitAmount').value) || 3;
     const target = document.getElementById('targetPos').value;
@@ -331,64 +409,124 @@ function calculateGrid() {
 
     if (dataList.length < 1) return Swal.fire({ icon: 'info', title: 'แจ้งเตือน', text: 'กรุณาเพิ่มข้อมูลหวยก่อนครับ' });
 
+    // 2. เตรียมข้อมูล (เรียงจาก เก่า -> ใหม่) [cite: 2026-03-05, 2026-03-07]
     let workingData = [...dataList].reverse();
     const totalRounds = workingData.length;
-    let totalLines = Math.floor(totalRounds / huntCount) + 1;
-    const linesToProcess = Math.min(totalLines, limitLines + 1);
+    let totalDataLines = Math.floor(totalRounds / huntCount);
+    let totalLines = totalDataLines + 1; 
+    let startL = Math.max(0, totalDataLines - limitLines);
 
+    // --- 3. ระบบสแกนค้นหาสูตร และ ตรวจสอบสูตรแนะนำ (Scanning & Streak Logic) --- [cite: 2026-03-07]
+    let validFormulas = [];
+    let recommendedFormulas = []; 
+    let fSearch = 0;
+    
+    // วนลูปสแกนสูงสุด 3,000 สูตร เพื่อค้นหาสูตรที่ผ่านเกณฑ์ [cite: 2026-03-07]
+    while (validFormulas.length < formulaLimit && fSearch < 3000) { 
+        let missCount = 0;
+        let currentStreak = 0;
+        let isStreakBroken = false;
+        
+        // ตรวจสอบย้อนหลังจากงวดล่าสุดเพื่อหา Streak และความผิดพลาด [cite: 2026-03-07]
+        for (let l = totalDataLines - 1; l >= 0; l--) {
+            let formulaBaseIdx = (l * huntCount) - 1 - testRounds;
+            const prevData = (formulaBaseIdx >= 0) ? workingData[formulaBaseIdx] : workingData[0];
+            let mockDigits = getDeterministicDigits(fSearch, prevData, digitAmount, digitStyle);
+            
+            let isHit = false;
+            for (let i = 0; i < huntCount; i++) {
+                const idx = (l * huntCount) + i;
+                if (idx < totalRounds) {
+                    const res = workingData[idx];
+                    let checkStr = (target.includes('win') || target.includes('TenUnit')) 
+                                    ? (target.includes('Top') ? res.top.substring(1) : res.bot) 
+                                    : res.top;
+
+                    if (target.includes('win') || target.includes('TenUnit')) {
+                        if (checkStr.split('').every(d => mockDigits.includes(d))) { isHit = true; break; }
+                    } else {
+                        if (mockDigits.split('').some(d => checkStr.includes(d))) { isHit = true; break; }
+                    }
+                }
+            }
+
+            // คำนวณความต่อเนื่อง (Streak) จากงวดปัจจุบันถอยหลัง [cite: 2026-03-07]
+            if (isHit) {
+                if (!isStreakBroken) currentStreak++;
+            } else {
+                isStreakBroken = true;
+                if (l >= startL) missCount++; // นับผิดเฉพาะในบรรทัดที่จะแสดงผล [cite: 2026-03-07]
+            }
+        }
+
+        // กรองสูตรที่ผ่านเกณฑ์ผิดไม่เกินลงตารางหลัก [cite: 2026-03-07]
+        if (missCount <= errorLimit) {
+            validFormulas.push({ id: fSearch, streak: currentStreak });
+        }
+        
+        // หากเดินดีเกิน 10 งวด ให้เก็บเข้าลิสต์ "สูตรแนะนำ" พร้อมเลขงวดถัดไป [cite: 2026-03-07]
+        if (currentStreak >= 10) {
+            let lastDataForNext = workingData[totalRounds - 1 - testRounds];
+            let nextDigits = getDeterministicDigits(fSearch, lastDataForNext, digitAmount, digitStyle);
+            
+            recommendedFormulas.push({ 
+                id: fSearch, 
+                streak: currentStreak,
+                digits: nextDigits // ส่งเลขเด่นไปแสดงบนการ์ดแนะนำ [cite: 2026-03-07]
+            });
+        }
+        fSearch++;
+    }
+
+    // สั่งแสดงผลหน้าต่างแนะนำ (Recommended UI) [cite: 2026-03-07]
+    updateRecommendedUI(recommendedFormulas);
+
+    if (validFormulas.length === 0) {
+        return Swal.fire({ icon: 'warning', title: 'ไม่พบสูตร', text: `ไม่พบสูตรที่ผิดไม่เกิน ${errorLimit} งวด โปรดลองเพิ่มเกณฑ์ผิดไม่เกินครับ` });
+    }
+
+    // --- 4. วาดตารางแสดงผล (Grid Rendering) --- [cite: 2026-03-07]
     const gridHead = document.getElementById('gridHead');
     gridHead.innerHTML = `<tr><th width="50">ลำดับ</th><th width="320">สถิติชุดการล่า (บน-ล่าง)</th>` + 
-        Array.from({length: formulaCount}, (_, i) => `<th>สูตร ${i+1}</th>`).join('') + `</tr>`;
+        validFormulas.map(f => `<th>สูตร ${f.id + 1}</th>`).join('') + `</tr>`;
 
     const gridBody = document.getElementById('gridBody');
     gridBody.innerHTML = '';
     const rowColors = ['row-pink', 'row-yellow', 'row-purple', 'row-cyan', 'row-green'];
     
-    let hitStats = Array(formulaCount).fill(0);
-    let streaks = Array(formulaCount).fill(0);
-    let doubleStats = 0; // เก็บสถิติงวดที่เกิดเลขเบิ้ล [cite: 2026-03-07]
-    let realRowsCount = 0; 
+    let hitStats = Array(validFormulas.length).fill(0);
+    let streaks = Array(validFormulas.length).fill(0);
+    let doubleStats = 0, realRowsCount = 0; 
 
-    for (let l = 0; l < linesToProcess; l++) {
+    for (let l = startL; l < totalLines; l++) {
         const tr = document.createElement('tr');
         tr.className = rowColors[l % rowColors.length];
-        let rowItems = [];
-        let hasIncompleteData = false;
-        let rowHasDouble = false; // เช็กเลขเบิ้ลในแถวนี้ [cite: 2026-03-07]
+        let rowItems = [], hasIncompleteData = false, rowHasDouble = false;
 
         for (let i = 0; i < huntCount; i++) {
             const idx = (l * huntCount) + i;
             if (idx < totalRounds) {
                 const res = workingData[idx];
                 rowItems.push(`${res.top}-${res.bot}`);
-                
-                // --- ตรรกะตรวจจับเลขเบิ้ล (Double Detection) --- [cite: 2026-03-07]
-                // เช็กเบิ้ลบน (2 ตัวท้าย) หรือ เบิ้ลล่าง
-                const isDoubleTop = res.top[1] === res.top[2];
-                const isDoubleBot = res.bot[0] === res.bot[1];
-                if (isDoubleTop || isDoubleBot) rowHasDouble = true;
+                if (res.top[1] === res.top[2] || res.bot[0] === res.bot[1]) rowHasDouble = true;
             } else {
                 rowItems.push(`???-??`);
-                hasIncompleteData = true;
+                hasIncompleteData = true; 
             }
         }
         
         const isFutureRow = hasIncompleteData; 
-        if (!isFutureRow) {
-            realRowsCount++;
-            if (rowHasDouble) doubleStats++; // นับจำนวนบรรทัดที่มีเลขเบิ้ล [cite: 2026-03-07]
-        }
+        if (!isFutureRow) { realRowsCount++; if (rowHasDouble) doubleStats++; }
         
-        // แสดงสัญลักษณ์ 🔔 หากบรรทัดนั้นมีเลขเบิ้ล
-        const doubleIcon = rowHasDouble ? '<span title="มีเลขเบิ้ลในชุดนี้">🔔</span>' : '';
-        let rowHtml = `<td class="${isFutureRow ? 'bg-amber-100 font-black' : 'font-bold'}">${l + 1} ${doubleIcon}</td><td class="stat-col">${rowItems.join(' * ')}</td>`;
+        const rowLabelClass = isFutureRow ? 'bg-amber-100 font-black ring-1 ring-amber-400' : 'font-bold';
+        let rowHtml = `<td class="${rowLabelClass}">${l + 1} ${rowHasDouble ? '🔔' : ''}</td><td class="stat-col">${rowItems.join(' * ')}</td>`;
 
-        for (let f = 0; f < formulaCount; f++) {
+        for (let fIdx = 0; fIdx < validFormulas.length; fIdx++) {
+            const fId = validFormulas[fIdx].id;
             let formulaBaseIdx = (l * huntCount) - 1 - testRounds;
             if (isFutureRow && formulaBaseIdx >= totalRounds) formulaBaseIdx = totalRounds - 1 - testRounds;
-            
             const prevData = (formulaBaseIdx >= 0) ? workingData[formulaBaseIdx] : workingData[0];
-            let mockDigits = getDeterministicDigits(f, prevData, digitAmount, digitStyle);
+            let mockDigits = getDeterministicDigits(fId, prevData, digitAmount, digitStyle);
             let hitRound = 0; 
 
             if (!isFutureRow) {
@@ -396,72 +534,89 @@ function calculateGrid() {
                     const idx = (l * huntCount) + i;
                     if (idx < totalRounds) {
                         const res = workingData[idx];
-                        let checkStr = "";
-                        
-                        // แยกหลักตามตำแหน่งที่เลือก
-                        if(target === 'hundred') checkStr = res.top[0];
-                        else if(target === 'topTen') checkStr = res.top[1];
-                        else if(target === 'topUnit') checkStr = res.top[2];
-                        else if(target === 'topTenUnit') checkStr = res.top.substring(1);
-                        else if(target === 'botTen') checkStr = res.bot[0];
-                        else if(target === 'botUnit') checkStr = res.bot[1];
-                        else if(target === 'botTenUnit') checkStr = res.bot;
-                        else if(target === 'allTenUnit') checkStr = res.top.substring(1) + res.bot;
-                        else if(target === 'allTop') checkStr = res.top;
-                        else if(target === 'winTop') checkStr = res.top.substring(1); // วินบน 2 ตัว [cite: 2026-03-07]
-                        else if(target === 'winBot') checkStr = res.bot; // วินล่าง 2 ตัว [cite: 2026-03-07]
-
-                        // --- แก้ไขลอจิก "วิน" (Win Logic) ให้แม่นยำ 100% --- [cite: 2026-03-07]
+                        let checkStr = (target.includes('win') || target.includes('TenUnit')) 
+                                        ? (target.includes('Top') ? res.top.substring(1) : res.bot) 
+                                        : res.top;
                         if (target.includes('win') || target.includes('TenUnit')) {
-                            // ต้องมีครบทุกตัวในผลรางวัล ถึงจะถือว่าถูก (Win)
-                            const resDigits = checkStr.split('');
-                            const isWin = resDigits.every(d => mockDigits.includes(d));
-                            if (isWin) { hitRound = i + 1; break; }
+                            if (checkStr.split('').every(d => mockDigits.includes(d))) { hitRound = i + 1; break; }
                         } else {
-                            // เลขเด่น: มีตัวใดตัวหนึ่งตรงถือว่าถูก [cite: 2026-03-05]
-                            if (mockDigits.split('').some(d => checkStr.includes(d))) {
-                                hitRound = i + 1; break;
-                            }
+                            if (mockDigits.split('').some(d => checkStr.includes(d))) { hitRound = i + 1; break; }
                         }
                     }
                 }
-                
-                // คำนวณ Streak
                 if (hitRound > 0) {
-                    hitStats[f]++;
-                    if (streaks[f] >= 0) streaks[f]++; else streaks[f] = 1;
+                    hitStats[fIdx]++;
+                    streaks[fIdx] = (streaks[fIdx] >= 0) ? streaks[fIdx] + 1 : 1;
                 } else {
-                    if (streaks[f] <= 0) streaks[f]--; else streaks[f] = -1;
+                    streaks[fIdx] = (streaks[fIdx] <= 0) ? streaks[fIdx] - 1 : -1;
                 }
             }
-
-            if (isFutureRow) {
-                rowHtml += `<td class="font-black text-blue-900 bg-white ring-2 ring-blue-500 ring-inset">${mockDigits}</td>`;
-            } else {
-                rowHtml += `<td class="${hitRound > 0 ? 'hit-cell' : 'miss-cell'}">${mockDigits}(${hitRound})</td>`;
-            }
+            // แสดงผลเลขทำนายงวดถัดไปในตารางหลัก [cite: 2026-03-07]
+            rowHtml += isFutureRow 
+                ? `<td class="font-black text-blue-900 bg-white ring-2 ring-blue-500 ring-inset shadow-inner">${mockDigits}</td>`
+                : `<td class="${hitRound > 0 ? 'hit-cell' : 'miss-cell'}">${mockDigits}(${hitRound})</td>`;
         }
         tr.innerHTML = rowHtml;
         gridBody.appendChild(tr);
     }
     
-    // --- ปรับปรุง Footer ให้แสดงสถิติเลขเบิ้ล --- [cite: 2026-03-07]
+    // --- 5. สรุปผล Footer --- [cite: 2026-03-07]
     const gridFoot = document.getElementById('gridFoot');
     let footHtml = `<tr><td colspan="2" class="text-right p-2 font-bold bg-slate-100">ถูก (ครั้ง) :</td>` + 
         hitStats.map(h => `<td class="text-green-700 font-black bg-white">${h}</td>`).join('') + `</tr>`;
-    
     footHtml += `<tr><td colspan="2" class="text-right p-2 font-bold bg-slate-100 text-blue-600">ความแม่นยำ (%) :</td>` + 
         hitStats.map(h => `<td class="font-black bg-white text-blue-700">${realRowsCount > 0 ? ((h/realRowsCount)*100).toFixed(0) : 0}%</td>`).join('') + `</tr>`;
-
     footHtml += `<tr><td colspan="2" class="text-right p-2 font-bold bg-slate-100 text-orange-600">สถานะล่าสุด (Streak) :</td>` + 
         streaks.map(s => `<td class="${s > 0 ? 'text-green-600' : 'text-red-600'} font-black bg-white text-xs">${s > 0 ? `+${s}` : s}</td>`).join('') + `</tr>`;
-
-    // เพิ่มบรรทัดสถิติเลขเบิ้ล [cite: 2026-03-07]
-    footHtml += `<tr><td colspan="2" class="text-right p-2 font-bold bg-indigo-50 text-indigo-700">งวดที่พบเลขเบิ้ล 🔔 :</td><td colspan="${formulaCount}" class="text-left px-4 font-bold bg-white text-indigo-800">${doubleStats} บรรทัด (จากทั้งหมด ${realRowsCount})</td></tr>`;
-
+    footHtml += `<tr><td colspan="2" class="text-right p-2 font-bold bg-indigo-50 text-indigo-700">งวดที่พบเลขเบิ้ล 🔔 :</td><td colspan="${validFormulas.length}" class="text-left px-4 font-bold bg-white text-indigo-800">${doubleStats} ชุด (จากทั้งหมด ${realRowsCount})</td></tr>`;
     gridFoot.innerHTML = footHtml;
+
     document.getElementById('gridResultArea').classList.remove('hidden');
     window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+}
+
+// ฟังก์ชันสร้างหน้าต่างสูตรแนะนำ (ฉบับปรับปรุง: โชว์เลขทำนาย) [cite: 2026-03-07]
+function updateRecommendedUI(list) {
+    const area = document.getElementById('recommendedArea');
+    const container = document.getElementById('recommendedList');
+    
+    if (list.length > 0) {
+        area.classList.remove('hidden');
+        // เรียงตามความแม่น (Streak) และเลือก 6 สูตรเด่น [cite: 2026-03-07]
+        container.innerHTML = list.sort((a, b) => b.streak - a.streak).slice(0, 6).map(f => `
+            <div class="relative group p-4 bg-white border-2 border-orange-100 rounded-2xl shadow-sm hover:shadow-md hover:border-orange-300 transition-all cursor-pointer overflow-hidden">
+                <div class="absolute left-0 top-0 bottom-0 w-1 bg-orange-500"></div>
+                
+                <div class="flex justify-between items-start mb-2">
+                    <div>
+                        <span class="text-[10px] font-black text-orange-500 uppercase tracking-tighter">สูตรเด่นลำดับที่</span>
+                        <div class="text-2xl font-black text-slate-800 leading-none">${f.id + 1}</div>
+                    </div>
+                    <div class="text-right">
+                        <span class="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-[10px] font-bold">เข้า +${f.streak} งวด</span>
+                    </div>
+                </div>
+
+                <div class="mt-3 p-2 bg-slate-50 rounded-lg border border-dashed border-slate-200">
+                    <div class="text-[10px] text-gray-400 font-bold mb-1">เลขทำนายงวดถัดไป:</div>
+                    <div class="text-xl font-black text-blue-700 tracking-[0.2em] text-center">${f.digits || '---'}</div>
+                </div>
+                
+                <button onclick="copyToClipboard('${f.digits}')" class="w-full mt-3 py-1.5 text-[10px] font-bold bg-slate-800 text-white rounded-lg hover:bg-black active:scale-95 transition-all">
+                    คัดลอกเลข
+                </button>
+            </div>
+        `).join('');
+    } else {
+        area.classList.add('hidden');
+    }
+}
+
+// ฟังก์ชันเสริมสำหรับกดคัดลอกเลข [cite: 2026-03-07]
+function copyToClipboard(text) {
+    navigator.clipboard.writeText(text).then(() => {
+        Swal.fire({ icon: 'success', title: 'คัดลอกแล้ว', text: `คัดลอกเลข ${text} เรียบร้อย`, timer: 1000, showConfirmButton: false });
+    });
 }
 
 </script>
